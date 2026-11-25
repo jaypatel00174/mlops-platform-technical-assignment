@@ -1,6 +1,3 @@
-# Assignment brief (reference only, not part of the deliverable)
-/MLOps_G12_G13_Technical_Assignment_Pack/
-
 # Secrets and local config
 .env
 .env.*
