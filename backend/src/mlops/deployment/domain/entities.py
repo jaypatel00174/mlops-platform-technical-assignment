@@ -8,7 +8,7 @@ from typing import Self
 
 from mlops.deployment.domain import status as statuses
 from mlops.deployment.domain.failure import FailureClass
-from mlops.deployment.domain.status import DeploymentStatus, DeploymentType
+from mlops.deployment.domain.status import AttemptOutcome, DeploymentStatus, DeploymentType
 from mlops.kernel.errors import ValidationFailure
 
 _MAX_ERROR_LENGTH = 2000
@@ -125,6 +125,19 @@ class Deployment:
             updated_at=now,
             **changes,  # type: ignore[arg-type]
         )
+
+
+@dataclass(frozen=True, slots=True)
+class DeploymentAttempt:
+    """One try at a deployment. Committed before the external call, so intent is durable."""
+
+    deployment_id: str
+    attempt_no: int
+    outcome: AttemptOutcome
+    started_at: datetime
+    finished_at: datetime | None = None
+    error: str | None = None
+    runtime_ref: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
