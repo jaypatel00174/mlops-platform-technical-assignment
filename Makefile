@@ -6,7 +6,7 @@ BACKEND := backend
 COMPOSE ?= docker compose
 
 .DEFAULT_GOAL := help
-.PHONY: help bootstrap lint fmt typecheck arch test test-unit test-integration check up down migrate seed run worker token clean
+.PHONY: help bootstrap lint fmt typecheck arch test test-unit test-integration check up down migrate seed run worker token ui-install ui ui-build ui-test openapi clean
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-18s %s\n", $$1, $$2}'
@@ -61,6 +61,22 @@ worker: ## Start the deployment worker (run alongside `make run`; start several 
 
 token: ## Print a development bearer token (make token SUBJECT=bob ROLES=approver)
 	@cd $(BACKEND) && $(UV) run python -m mlops.devtoken --subject $(SUBJECT) --roles $(ROLES)
+
+ui-install: ## Install the frontend dependencies from the lockfile
+	cd frontend && NG_CLI_ANALYTICS=false npm ci
+
+ui: ## Start the Angular UI on http://localhost:4200 (proxies /api to the API on :8000)
+	cd frontend && NG_CLI_ANALYTICS=false npm start
+
+ui-build: ## Production build of the UI
+	cd frontend && NG_CLI_ANALYTICS=false npm run build
+
+ui-test: ## Frontend unit tests (single run)
+	cd frontend && NG_CLI_ANALYTICS=false npm test -- --watch=false
+
+openapi: ## Regenerate docs/openapi.json and the UI's typed client from the backend
+	cd $(BACKEND) && $(UV) run python -m mlops.export_openapi ../docs/openapi.json
+	cd frontend && NG_CLI_ANALYTICS=false npm run api:types
 
 clean: ## Remove caches and build artefacts
 	find . -name __pycache__ -type d -prune -exec rm -rf {} +
