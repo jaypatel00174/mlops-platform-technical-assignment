@@ -1,0 +1,89 @@
+<div class="page">
+  <a class="back" routerLink="/models"><app-icon name="back" [size]="16" /> All models</a>
+
+  @if (page.error(); as problem) {
+    <app-error-panel [error]="problem" (retry)="page.load()" />
+  } @else if (!model()) {
+    <div class="card hero">
+      <app-skeleton [height]="56" width="56px" />
+      <div class="grow">
+        <app-skeleton [height]="22" width="40%" /><app-skeleton [height]="14" width="25%" />
+      </div>
+    </div>
+  } @else {
+    @let m = model()!;
+    <header class="card hero">
+      <span class="avatar" aria-hidden="true">{{ initials(m.name) }}</span>
+      <div class="grow">
+        <h1>{{ m.name }}</h1>
+        <div class="meta soft">
+          <code>{{ m.id }}</code>
+          <span><app-icon name="user" [size]="14" /> {{ m.owner }}</span>
+          <span class="tag">{{ m.framework }}</span>
+          @for (tag of m.tags; track tag) {
+            <span class="tag"><app-icon name="tag" [size]="11" /> {{ tag }}</span>
+          }
+          <span>Updated {{ m.updated_at | ago }}</span>
+        </div>
+      </div>
+      <div class="status">
+        @if (status(); as s) {
+          <div class="soft">Health</div>
+          <app-chip kind="health" [value]="s.status" />
+        } @else if (store.pending() > 0) {
+          <app-skeleton [height]="24" width="80px" />
+        }
+      </div>
+      <div class="actions">
+        @if (auth.can('registerVersion')) {
+          <button mat-flat-button type="button" (click)="registerVersion()">
+            <app-icon name="plus" [size]="16" /> Register version
+          </button>
+        }
+      </div>
+    </header>
+
+    <nav class="tabs" role="tablist" aria-label="Model sections">
+      @for (t of tabs; track t.key) {
+        <button
+          type="button"
+          role="tab"
+          [attr.aria-selected]="active() === t.key"
+          [class.on]="active() === t.key"
+          (click)="select(t.key)"
+        >
+          <app-icon [name]="t.icon" [size]="17" /> {{ t.label }}
+          @if (t.key === 'versions') {
+            <span class="count num">{{ versions().length }}</span>
+          }
+        </button>
+      }
+    </nav>
+
+    <section role="tabpanel">
+      @switch (active()) {
+        @case ('versions') {
+          <app-versions-tab
+            [model]="m"
+            [versions]="versions()"
+            [status]="status()"
+            (changed)="reload()"
+            (register)="registerVersion()"
+          />
+        }
+        @case ('monitoring') {
+          <app-monitoring-tab [modelId]="m.id" [versions]="versions()" [status]="status()" />
+        }
+        @case ('compare') {
+          <app-compare-tab [modelId]="m.id" [versions]="versions()" />
+        }
+        @case ('deployments') {
+          <app-model-deployments-tab [modelId]="m.id" />
+        }
+        @case ('audit') {
+          <app-audit-tab [modelId]="m.id" [versions]="versions()" />
+        }
+      }
+    </section>
+  }
+</div>

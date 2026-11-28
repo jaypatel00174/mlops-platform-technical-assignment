@@ -1,0 +1,157 @@
+@if (versions().length === 0) {
+  <div class="card">
+    <app-empty
+      icon="pulse"
+      title="Nothing to monitor yet"
+      message="Register and deploy a version. Its metrics will appear here once it reports."
+    />
+  </div>
+} @else {
+  <section class="controls" aria-label="Chart controls">
+    <mat-select
+      class="select"
+      [value]="version()"
+      (selectionChange)="pickVersion($event.value)"
+      aria-label="Version"
+    >
+      @for (name of versionNames(); track name) {
+        <mat-option [value]="name">Version {{ name }}</mat-option>
+      }
+    </mat-select>
+
+    <mat-select
+      class="select"
+      [value]="environment()"
+      (selectionChange)="environment.set($event.value)"
+      aria-label="Environment"
+    >
+      @for (name of environmentNames(); track name) {
+        <mat-option [value]="name">{{ name }}</mat-option>
+      }
+    </mat-select>
+
+    <div class="segmented" role="group" aria-label="Time range">
+      @for (p of presets; track p.key) {
+        <button
+          type="button"
+          [attr.aria-pressed]="preset() === p.key"
+          [title]="p.hint"
+          (click)="pickPreset(p.key)"
+        >
+          {{ p.label }}
+        </button>
+      }
+    </div>
+
+    <div class="segmented" role="group" aria-label="Detail">
+      @for (r of resolutions; track r.key) {
+        <button
+          type="button"
+          [attr.aria-pressed]="resolution() === r.key"
+          (click)="setResolution(r.key)"
+        >
+          {{ r.label }}
+        </button>
+      }
+    </div>
+  </section>
+
+  @if (health(); as h) {
+    <section class="card verdict" [class]="'card verdict ' + h.status.toLowerCase()">
+      <div class="spread">
+        <div class="row">
+          <app-chip kind="health" [value]="h.status" />
+          <strong>v{{ h.version }} in {{ h.environment }}</strong>
+          @if (h.live) {
+            <span class="tag">live</span>
+          }
+        </div>
+        <span class="soft">
+          @if (h.last_sample_at) {
+            Last sample {{ h.last_sample_at | ago }}
+          } @else {
+            No samples received
+          }
+        </span>
+      </div>
+      @if (h.reasons.length) {
+        <ul class="reasons">
+          @for (reason of h.reasons; track reason.metric + reason.severity) {
+            <li>
+              <app-chip kind="health" [value]="reason.severity" />
+              <span>{{ reason.message }}</span>
+            </li>
+          }
+        </ul>
+      } @else if (h.status === 'HEALTHY') {
+        <p class="soft">Every metric is inside its limits over the latest window.</p>
+      }
+    </section>
+  } @else if (version() && environment()) {
+    <section class="card verdict">
+      <p class="soft">
+        Nothing is live for <strong>v{{ version() }}</strong> in
+        <strong>{{ environment() }}</strong> and it has not reported metrics.
+      </p>
+    </section>
+  }
+
+  @if (series.error(); as problem) {
+    <app-error-panel [error]="problem" (retry)="series.load()" />
+  } @else if (!hasWindow()) {
+    <div class="card">
+      <app-empty
+        icon="pulse"
+        title="No metrics received yet"
+        message="This version has not reported any samples in this environment. Choose another version or environment, or send metrics to /api/v1/metrics."
+      />
+    </div>
+  } @else if (series.loading() && !series.data()) {
+    <div class="grid grid-2">
+      @for (n of [1, 2, 3, 4]; track n) {
+        <div class="card">
+          <app-skeleton [height]="16" width="35%" /><app-skeleton [height]="190" />
+        </div>
+      }
+    </div>
+  } @else if (series.data(); as data) {
+    @if (!data.summary) {
+      <div class="card">
+        <app-empty
+          icon="clock"
+          title="No samples in this range"
+          message="Try a wider range, such as All time."
+        />
+      </div>
+    } @else {
+      <p class="soft range">
+        {{ data.summary.count }} samples from {{ data.summary.first_ts | ago }} to
+        {{ data.summary.last_ts | ago }} · p95 latency
+        {{ display('latency_ms', data.summary.latency_p95_ms) }}
+      </p>
+      <div class="grid grid-2" [class.busy]="series.loading()">
+        @for (card of cards(); track card.key) {
+          <article class="card metric">
+            <div class="spread">
+              <h3>{{ card.label }}</h3>
+              <div class="big num">{{ display(card.key, card.latest) }}</div>
+            </div>
+            <app-line-chart
+              [points]="card.points"
+              [format]="card.format"
+              [color]="card.color"
+              [limits]="card.limits"
+              [label]="card.label"
+              [height]="170"
+            />
+            <div class="stats soft num">
+              <span>mean {{ display(card.key, card.mean) }}</span>
+              <span>min {{ display(card.key, card.min) }}</span>
+              <span>max {{ display(card.key, card.max) }}</span>
+            </div>
+          </article>
+        }
+      </div>
+    }
+  }
+}

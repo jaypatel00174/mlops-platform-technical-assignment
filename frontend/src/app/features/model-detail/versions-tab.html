@@ -1,0 +1,176 @@
+@if (versions().length === 0) {
+  <div class="card">
+    <app-empty
+      icon="layers"
+      title="No versions yet"
+      message="A version is one trained artefact. Register one to validate, approve and deploy it."
+    >
+      @if (auth.can('registerVersion')) {
+        <button mat-flat-button type="button" (click)="register.emit()">
+          Register the first version
+        </button>
+      }
+    </app-empty>
+  </div>
+} @else {
+  <div class="card flush">
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th>Version</th>
+            <th>Stage</th>
+            <th>Approval</th>
+            <th>Live in</th>
+            <th>Registered</th>
+            <th><span class="sr-only">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (v of sorted(); track v.version) {
+            <tr
+              class="clickable"
+              [class.selected]="expanded() === v.version"
+              tabindex="0"
+              (click)="toggle(v.version)"
+              (keydown.enter)="toggle(v.version)"
+              [attr.aria-expanded]="expanded() === v.version"
+            >
+              <td>
+                <div class="row">
+                  <app-icon
+                    name="chevron"
+                    [size]="15"
+                    class="caret"
+                    [class.open]="expanded() === v.version"
+                  />
+                  <strong class="num">v{{ v.version }}</strong>
+                </div>
+                <div class="soft sub">{{ v.algorithm }}</div>
+              </td>
+              <td><app-chip kind="stage" [value]="v.stage" /></td>
+              <td><app-chip kind="approval" [value]="v.approval_status" /></td>
+              <td>
+                <div class="row">
+                  @for (env of liveIn(v.version); track env) {
+                    <span class="env-pill" [class]="'env-pill ' + env">{{ env }}</span>
+                  } @empty {
+                    <span class="soft">—</span>
+                  }
+                  @if (healthOf(v.version); as health) {
+                    <app-chip kind="health" [value]="health" />
+                  }
+                </div>
+              </td>
+              <td class="soft">
+                {{ v.registered_by }}
+                <div class="sub" [title]="v.created_at">{{ v.created_at | ago }}</div>
+              </td>
+              <td class="end" (click)="$event.stopPropagation()">
+                @if (hasActions(v)) {
+                  <button
+                    mat-icon-button
+                    type="button"
+                    [matMenuTriggerFor]="menu"
+                    [disabled]="working() === v.version"
+                    [attr.aria-label]="'Actions for v' + v.version"
+                  >
+                    @if (working() === v.version) {
+                      <span class="spin"></span>
+                    } @else {
+                      <app-icon name="more" />
+                    }
+                  </button>
+                  <mat-menu #menu="matMenu" xPosition="before">
+                    @if (canDeploy(v)) {
+                      <button mat-menu-item type="button" (click)="deploy(v)">
+                        <app-icon name="rocket" [size]="18" /> Deploy…
+                      </button>
+                    }
+                    @if (canValidate(v)) {
+                      <button mat-menu-item type="button" (click)="run(v, 'validate')">
+                        <app-icon name="check" [size]="18" /> Validate
+                      </button>
+                    }
+                    @if (canDecide(v)) {
+                      <button mat-menu-item type="button" (click)="decide(v, 'approve')">
+                        <app-icon name="shield" [size]="18" /> Approve…
+                      </button>
+                      <button mat-menu-item type="button" (click)="decide(v, 'reject')">
+                        <app-icon name="close" [size]="18" /> Reject…
+                      </button>
+                    }
+                    @if (canArchive(v)) {
+                      <button mat-menu-item type="button" (click)="archive(v)">
+                        <app-icon name="archive" [size]="18" /> Archive…
+                      </button>
+                    }
+                  </mat-menu>
+                }
+              </td>
+            </tr>
+            @if (expanded() === v.version) {
+              <tr class="more">
+                <td colspan="6">
+                  <dl class="facts">
+                    <div class="wide">
+                      <dt>Artifact</dt>
+                      <dd>
+                        <code>{{ v.artifact_uri }}</code>
+                      </dd>
+                    </div>
+                    <div class="wide">
+                      <dt>Digest</dt>
+                      <dd>
+                        <button
+                          class="copy"
+                          type="button"
+                          (click)="copy(v.artifact_digest)"
+                          title="Copy digest"
+                        >
+                          <code>{{ v.artifact_digest }}</code> <app-icon name="copy" [size]="14" />
+                        </button>
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Training data</dt>
+                      <dd>
+                        <code>{{ v.training_data_ref }}</code>
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Runtime</dt>
+                      <dd>{{ v.runtime_type }}</dd>
+                    </div>
+                    <div>
+                      <dt>Registered</dt>
+                      <dd>{{ v.created_at | dateTime }} by {{ v.registered_by }}</dd>
+                    </div>
+                    <div>
+                      <dt>Tags</dt>
+                      <dd>
+                        @for (tag of v.tags; track tag) {
+                          <span class="tag">{{ tag }}</span>
+                        } @empty {
+                          <span class="soft">none</span>
+                        }
+                      </dd>
+                    </div>
+                    @if (hasMetadata(v)) {
+                      <div class="wide">
+                        <dt>Metadata</dt>
+                        <dd>
+                          <pre class="mono">{{ json(v.metadata) }}</pre>
+                        </dd>
+                      </div>
+                    }
+                  </dl>
+                </td>
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+  </div>
+}

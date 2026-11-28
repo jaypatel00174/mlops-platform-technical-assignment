@@ -146,6 +146,7 @@ def test_the_openapi_contract_lists_every_endpoint(client: TestClient) -> None:
         "/api/v1/deployments/{deployment_id}/events",
         "/api/v1/deployments/{deployment_id}/retry",
         "/api/v1/deployments/{deployment_id}/rollback",
+        "/api/v1/dev/token",  # mounted in the test environment only
         "/api/v1/environments/{environment}/bindings",
         "/api/v1/metrics",
         "/api/v1/models",

@@ -17,6 +17,7 @@ from mlops.kernel.ports import Clock, IdGenerator
 from mlops.monitoring.api.routes import router as monitoring_router
 from mlops.platform.auth import DevJwtIdentityProvider, IdentityProvider, OidcJwtIdentityProvider
 from mlops.platform.config import Settings
+from mlops.platform.dev_login import build_dev_login_router, dev_login_enabled
 from mlops.platform.health import build_health_router
 from mlops.platform.middleware import RequestContextMiddleware
 from mlops.platform.problem import install_error_handlers
@@ -100,4 +101,13 @@ def create_app(
     app.include_router(registry_router)
     app.include_router(deployment_router)
     app.include_router(governance_router)
+    if dev_login_enabled(settings):
+        app.include_router(
+            build_dev_login_router(
+                settings,
+                clock,
+                issuer=settings.oidc_issuer or DEV_ISSUER,
+                audience=settings.oidc_audience or DEV_AUDIENCE,
+            )
+        )
     return app

@@ -1,0 +1,176 @@
+<section class="detail card" aria-live="polite">
+  @if (timeline.error(); as problem) {
+    <div class="bar">
+      <button mat-icon-button type="button" aria-label="Close" (click)="closed.emit()">
+        <app-icon name="close" />
+      </button>
+    </div>
+    <app-error-panel [error]="problem" (retry)="timeline.load()" />
+  } @else if (!deployment()) {
+    <app-skeleton [height]="22" width="55%" />
+    <app-skeleton [height]="60" />
+    <app-skeleton [height]="120" />
+  } @else {
+    @let d = deployment()!;
+    <header class="head">
+      <div>
+        <div class="soft eyebrow">
+          Deployment <code>{{ d.deployment_id }}</code>
+        </div>
+        <h2>
+          <a [routerLink]="['/models', d.model_id]">{{ d.model_id }}</a>
+          <span class="num"> v{{ d.version }}</span>
+        </h2>
+        <div class="row">
+          <span class="env-pill" [class]="'env-pill ' + d.environment">{{ d.environment }}</span>
+          <app-chip kind="deployment" [value]="d.status" />
+          @if (d.type === 'ROLLBACK') {
+            <span class="tag"><app-icon name="undo" [size]="12" /> rollback</span>
+          }
+          @if (isMoving()) {
+            <span class="soft live">updating live</span>
+          }
+        </div>
+      </div>
+      <button mat-icon-button type="button" aria-label="Close details" (click)="closed.emit()">
+        <app-icon name="close" />
+      </button>
+    </header>
+
+    <ol class="steps" aria-label="Progress">
+      @for (step of steps; track step.key; let i = $index) {
+        <li [class]="progress()[i]">
+          <span class="bubble">
+            @switch (progress()[i]) {
+              @case ('done') {
+                <app-icon name="check" [size]="14" />
+              }
+              @case ('failed') {
+                <app-icon name="close" [size]="14" />
+              }
+              @case ('active') {
+                <span class="pulse"></span>
+              }
+              @default {
+                {{ i + 1 }}
+              }
+            }
+          </span>
+          <strong>{{ stepLabel(i) }}</strong>
+          @if (i < 3) {
+            <small>{{ step.hint }}</small>
+          }
+        </li>
+      }
+    </ol>
+
+    @if (d.status === 'FAILED') {
+      <div class="failure" role="alert">
+        <h3>
+          <app-icon name="alert" [size]="16" /> {{ failure()?.title ?? 'The deployment failed' }}
+        </h3>
+        @if (d.failure_class) {
+          <span class="tag">{{ d.failure_class }}</span>
+        }
+        <p>{{ failure()?.help }}</p>
+        @if (d.error) {
+          <pre class="mono">{{ d.error }}</pre>
+        }
+      </div>
+    }
+
+    <div class="actions">
+      @if (canRetry()) {
+        <button mat-flat-button type="button" (click)="retry()">
+          <app-icon name="refresh" [size]="16" /> Retry
+        </button>
+      }
+      @if (canRollback()) {
+        <button mat-stroked-button type="button" (click)="rollback()">
+          <app-icon name="undo" [size]="16" /> Roll back
+        </button>
+      }
+    </div>
+
+    <dl class="facts">
+      <div>
+        <dt>Requested by</dt>
+        <dd>{{ d.requested_by }}</dd>
+      </div>
+      <div>
+        <dt>Requested</dt>
+        <dd [title]="d.created_at">{{ d.created_at | dateTime }}</dd>
+      </div>
+      <div>
+        <dt>Last change</dt>
+        <dd>{{ d.updated_at | ago }}</dd>
+      </div>
+      <div>
+        <dt>Attempts</dt>
+        <dd class="num">{{ d.attempt }}</dd>
+      </div>
+      @if (d.rollback_of) {
+        <div>
+          <dt>Rolls back</dt>
+          <dd>
+            <code>{{ d.rollback_of }}</code>
+          </dd>
+        </div>
+      }
+      <div>
+        <dt>Reference</dt>
+        <dd>
+          <button
+            class="copy"
+            type="button"
+            (click)="copy(d.correlation_id)"
+            title="Copy reference"
+          >
+            <code>{{ d.correlation_id.slice(0, 12) }}…</code> <app-icon name="copy" [size]="14" />
+          </button>
+        </dd>
+      </div>
+    </dl>
+
+    @let t = timeline.data()!;
+    @if (t.attempts.length) {
+      <h3>Attempts</h3>
+      <ul class="attempts">
+        @for (a of t.attempts; track a.attempt_no) {
+          <li>
+            <span class="num n">#{{ a.attempt_no }}</span>
+            <app-chip
+              kind="deployment"
+              [value]="a.outcome === 'STARTED' ? 'DEPLOYING' : a.outcome"
+            />
+            <span class="soft">{{ a.started_at | dateTime }}</span>
+            @if (a.runtime_ref) {
+              <code class="soft ref">{{ a.runtime_ref }}</code>
+            }
+            @if (a.error) {
+              <p class="soft err">{{ a.error }}</p>
+            }
+          </li>
+        }
+      </ul>
+    }
+
+    <h3>What happened</h3>
+    @if (t.events.length === 0) {
+      <p class="soft">No events recorded yet.</p>
+    } @else {
+      <ol class="timeline">
+        @for (e of t.events; track $index) {
+          <li>
+            <span class="node" [class]="'node ' + nodeTone(e.action)"></span>
+            <div class="spread">
+              <strong>{{ actionLabel(e.action) }}</strong>
+              <span class="soft" [title]="e.occurred_at">{{ e.occurred_at | ago }}</span>
+            </div>
+            <div class="soft">by {{ e.actor }}</div>
+          </li>
+        }
+      </ol>
+    }
+  }
+</section>

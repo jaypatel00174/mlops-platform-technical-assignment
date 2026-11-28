@@ -57,6 +57,12 @@ def test_old_data_is_stale_not_healthy_even_if_the_numbers_were_good() -> None:
     assert "25 hours" in report.reasons[0].message
 
 
+def test_long_silences_are_reported_in_days() -> None:
+    report = evaluate([sample(minutes_ago=3 * 24 * 60)], NOW)
+
+    assert "3 days ago" in report.reasons[0].message
+
+
 def test_the_staleness_limit_is_configurable() -> None:
     thresholds = HealthThresholds(stale_after=timedelta(minutes=10))
 

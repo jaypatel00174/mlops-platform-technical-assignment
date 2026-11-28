@@ -113,6 +113,9 @@ def worst_status(statuses: Iterable[HealthStatus]) -> HealthStatus:
 
 def _age(delta: timedelta) -> str:
     seconds = int(delta.total_seconds())
+    if seconds >= 2 * 86400:
+        days = seconds // 86400
+        return f"{days} days"
     if seconds >= 3600:
         hours = seconds // 3600
         return f"{hours} hour{'s' if hours != 1 else ''}"

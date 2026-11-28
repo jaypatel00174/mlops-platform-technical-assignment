@@ -1,0 +1,109 @@
+:host {
+  display: grid;
+  gap: 16px;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--card);
+  flex: 0 0 auto;
+  width: 190px;
+}
+
+.arrow {
+  color: var(--text-soft);
+}
+
+.tight {
+  td,
+  th {
+    padding: 8px 10px;
+  }
+}
+
+tr.differs td:not(:first-child) {
+  font-weight: 650;
+}
+
+.deltas {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 14px;
+
+  li {
+    display: grid;
+    gap: 4px;
+  }
+
+  .values {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12.5px;
+  }
+
+  .meter {
+    height: 6px;
+    border-radius: 99px;
+    background: var(--muted-soft);
+    overflow: hidden;
+
+    i {
+      display: block;
+      height: 100%;
+      border-radius: 99px;
+      background: var(--muted);
+      transition: width 500ms ease;
+    }
+  }
+
+  .change {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 700;
+  }
+
+  .dir.down {
+    transform: rotate(90deg);
+  }
+
+  .better {
+    .meter i {
+      background: var(--ok);
+    }
+
+    .change {
+      color: var(--ok);
+    }
+  }
+
+  .worse {
+    .meter i {
+      background: var(--crit);
+    }
+
+    .change {
+      color: var(--crit);
+    }
+  }
+}
+
+.note {
+  margin-top: 14px;
+}

@@ -1,0 +1,179 @@
+<div class="page">
+  <header class="page-head">
+    <div>
+      <div class="eyebrow">Overview</div>
+      <h1>{{ greeting() }}</h1>
+      <p class="soft">Here is how your models and deployments are doing right now.</p>
+    </div>
+    <div class="actions">
+      <button mat-stroked-button type="button" (click)="refresh()">
+        <app-icon name="refresh" [size]="16" /> Refresh
+      </button>
+      <a mat-flat-button routerLink="/models"><app-icon name="cube" [size]="16" /> Browse models</a>
+    </div>
+  </header>
+
+  @if (data.error(); as problem) {
+    <app-error-panel [error]="problem" (retry)="data.load()" />
+  } @else {
+    <section class="grid grid-4" aria-label="Key numbers">
+      @if (data.loading() && !data.data()) {
+        @for (n of [1, 2, 3, 4]; track n) {
+          <div class="card">
+            <app-skeleton [height]="14" width="40%" /><app-skeleton [height]="34" width="55%" />
+          </div>
+        }
+      } @else {
+        <div class="card kpi" style="--tint: var(--info-soft); --tint-fg: var(--info)">
+          <div class="kpi-icon"><app-icon name="cube" [size]="20" /></div>
+          <div class="kpi-label">Models</div>
+          <div class="kpi-value">{{ models().length }}</div>
+          <div class="kpi-hint">registered in the platform</div>
+        </div>
+        <div class="card kpi" style="--tint: var(--ok-soft); --tint-fg: var(--ok)">
+          <div class="kpi-icon"><app-icon name="server" [size]="20" /></div>
+          <div class="kpi-label">Live in production</div>
+          <div class="kpi-value">{{ liveByEnvironment()[2].live }}</div>
+          <div class="kpi-hint">models serving traffic</div>
+        </div>
+        <div class="card kpi" style="--tint: var(--warn-soft); --tint-fg: var(--warn)">
+          <div class="kpi-icon"><app-icon name="rocket" [size]="20" /></div>
+          <div class="kpi-label">In flight</div>
+          <div class="kpi-value">{{ inFlight().length }}</div>
+          <div class="kpi-hint">
+            {{ inFlight().length ? 'deployments running now' : 'nothing deploying' }}
+          </div>
+        </div>
+        <div class="card kpi" style="--tint: var(--crit-soft); --tint-fg: var(--crit)">
+          <div class="kpi-icon"><app-icon name="alert" [size]="20" /></div>
+          <div class="kpi-label">Failed</div>
+          <div class="kpi-value">{{ failed().length }}</div>
+          <div class="kpi-hint">among the latest {{ deployments().length }} deployments</div>
+        </div>
+      }
+    </section>
+
+    <section class="split">
+      <div class="card">
+        <div class="card-head">
+          <h2>Fleet health</h2>
+          @if (loadingStatuses()) {
+            <span class="soft">Checking models…</span>
+          }
+        </div>
+        @if (models().length === 0 && !data.loading()) {
+          <app-empty
+            icon="cube"
+            title="No models yet"
+            message="Register your first model and its health will show up here."
+          />
+        } @else {
+          <app-donut [segments]="segments()" unit="models" (pick)="openModels($event)" />
+          <p class="help-text hint">
+            Status comes from the metrics each live version reports. Select a status to see those
+            models.
+          </p>
+        }
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Live per environment</h2></div>
+        <ul class="envs">
+          @for (item of liveByEnvironment(); track item.environment) {
+            <li>
+              <span class="env-pill" [class]="'env-pill ' + item.environment">{{
+                item.environment
+              }}</span>
+              <span class="bar"
+                ><i [style.width.%]="models().length ? (item.live / models().length) * 100 : 0"></i
+              ></span>
+              <strong class="num">{{ item.live }}</strong>
+              <span class="soft">/ {{ models().length }}</span>
+            </li>
+          }
+        </ul>
+      </div>
+    </section>
+
+    <section class="split">
+      <div class="card flush">
+        <div class="card-head">
+          <h2>Latest deployments</h2>
+          <a routerLink="/deployments">View all</a>
+        </div>
+        @if (recent().length === 0 && !data.loading()) {
+          <app-empty
+            icon="rocket"
+            title="No deployments yet"
+            message="Deploy an approved version from its model page."
+          />
+        } @else {
+          <div class="table-wrap">
+            <table class="data">
+              <thead>
+                <tr>
+                  <th>Model</th>
+                  <th>Env</th>
+                  <th>Status</th>
+                  <th>When</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (d of recent(); track d.deployment_id) {
+                  <tr
+                    class="clickable"
+                    tabindex="0"
+                    (click)="router.navigate(['/deployments', d.deployment_id])"
+                    (keydown.enter)="router.navigate(['/deployments', d.deployment_id])"
+                  >
+                    <td>
+                      <strong>{{ d.model_id }}</strong>
+                      <div class="soft">
+                        v{{ d.version }}
+                        @if (d.type === 'ROLLBACK') {
+                          · rollback
+                        }
+                      </div>
+                    </td>
+                    <td>
+                      <span class="env-pill" [class]="'env-pill ' + d.environment">{{
+                        d.environment
+                      }}</span>
+                    </td>
+                    <td><app-chip kind="deployment" [value]="d.status" /></td>
+                    <td class="soft">{{ d.updated_at | ago }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Needs attention</h2></div>
+        @if (needsAttention().length === 0) {
+          <app-empty
+            icon="check"
+            title="Nothing needs attention"
+            message="No model is degraded, critical or silent. Models still being checked appear here once known."
+          />
+        } @else {
+          <ul class="attention">
+            @for (item of needsAttention(); track item.id) {
+              <li>
+                <a class="attn" [routerLink]="['/models', item.id]">
+                  <div class="spread">
+                    <strong>{{ item.name }}</strong>
+                    <app-chip kind="health" [value]="item.status" />
+                  </div>
+                  <p class="soft">{{ item.why }}</p>
+                </a>
+              </li>
+            }
+          </ul>
+        }
+      </div>
+    </section>
+  }
+</div>

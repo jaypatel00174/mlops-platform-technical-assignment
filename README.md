@@ -36,6 +36,8 @@ make migrate       # applies database migrations
 make seed          # loads the sample data from data/seed (idempotent)
 make run           # starts the API on http://localhost:8000 (Swagger UI at /docs)
 make worker        # in a second terminal: runs the deployments the API accepts
+make ui-install    # once: installs the Angular dependencies
+make ui            # third terminal: the web UI on http://localhost:4200 (pick a person to sign in)
 ```
 
 The API only records a deployment request and answers `202`. The worker does the work, so without `make worker` a deployment stays `REQUESTED`. You can start several workers; they share the queue safely.
@@ -65,7 +67,7 @@ TEST_DATABASE_URL=postgresql+psycopg://mlops:mlops@localhost:5432/mlops make tes
 
 ```text
 backend/    Python application (src/mlops: kernel, platform, registry, governance, deployment, monitoring)
-frontend/   Angular application (later milestone)
+frontend/   Angular application (see frontend/README.md)
 data/       seed data and notes on its inconsistencies
 docs/       architecture, API design, ADRs, test strategy, leadership artifacts, diagrams
 deploy/     Kubernetes and Helm skeleton (design)
@@ -87,10 +89,10 @@ Feature branches merge into `dev` by pull request; `dev` is promoted to `main` b
 | M2 Registry and governance API | Models, versions, approvals, error envelope, RBAC | Done |
 | M3 Async deployments | Outbox, worker, idempotency, retry, rollback, reconciler | Implemented, in review |
 | M4a Monitoring API | Metric ingest, series, health status, version comparison | Implemented, in review |
-| M4b Angular UI | Models, versions, deployments, monitoring, error states | Not started |
+| M4b Angular UI | Overview, models, versions, deployments, monitoring, error states | Implemented, in review |
 | M5 Packaging and CI | Full Compose stack, smoke test | Not started |
 
-What exists today: the domain rules (lifecycle, promotion policy, approvals with separation of duties, deployment status machine, failure classes, rollback safety, idempotency), the PostgreSQL schema with its concurrency guards, repositories, and an idempotent seed loader. On top of that, the registry and governance HTTP API (`/api/v1/models`, versions, validate, approve, reject, archive, audit events) with RFC 7807 errors, JWT auth, RBAC, ETag/If-Match and cursor pagination. M3 adds asynchronous deployments: `POST /api/v1/deployments` (requires an `Idempotency-Key`, answers `202`), status and timeline endpoints, `retry`, `rollback` and `GET /environments/{env}/bindings`. A transactional outbox feeds a worker that validates, deploys through a `ModelRuntime` port (a simulated runtime ships; a failing artifact can be requested with `?sim=timeout`, `?sim=reject`, `?sim=flaky:2` or `?sim=missing` on the artifact URI), retries transient failures with jittered backoff, and records every attempt. A reconciler repairs deployments a crashed worker left half done. M4a adds monitoring: `POST /api/v1/metrics` (service role, all-or-nothing batches that are safe to resend), `GET /models/{id}/metrics` (raw, hourly or daily series with a summary), `GET /models/{id}/status` (`HEALTHY`, `DEGRADED`, `CRITICAL`, `STALE` or `NO_DATA`, each with reasons) and `GET /models/{id}/versions/compare`. The health rules and thresholds are written down in [docs/monitoring.md](docs/monitoring.md). There is **no UI yet**; that is M4b. Seeded metrics end in July 2026, so seeded models read `STALE` until fresh samples arrive.
+What exists today: the domain rules (lifecycle, promotion policy, approvals with separation of duties, deployment status machine, failure classes, rollback safety, idempotency), the PostgreSQL schema with its concurrency guards, repositories, and an idempotent seed loader. On top of that, the registry and governance HTTP API (`/api/v1/models`, versions, validate, approve, reject, archive, audit events) with RFC 7807 errors, JWT auth, RBAC, ETag/If-Match and cursor pagination. M3 adds asynchronous deployments: `POST /api/v1/deployments` (requires an `Idempotency-Key`, answers `202`), status and timeline endpoints, `retry`, `rollback` and `GET /environments/{env}/bindings`. A transactional outbox feeds a worker that validates, deploys through a `ModelRuntime` port (a simulated runtime ships; a failing artifact can be requested with `?sim=timeout`, `?sim=reject`, `?sim=flaky:2` or `?sim=missing` on the artifact URI), retries transient failures with jittered backoff, and records every attempt. A reconciler repairs deployments a crashed worker left half done. M4a adds monitoring: `POST /api/v1/metrics` (service role, all-or-nothing batches that are safe to resend), `GET /models/{id}/metrics` (raw, hourly or daily series with a summary), `GET /models/{id}/status` (`HEALTHY`, `DEGRADED`, `CRITICAL`, `STALE` or `NO_DATA`, each with reasons) and `GET /models/{id}/versions/compare`. The health rules and thresholds are written down in [docs/monitoring.md](docs/monitoring.md). M4b adds the Angular UI (`make ui`): overview, models, versions with approval and deploy actions, live deployments with retry and rollback, monitoring charts and version comparison. The UI signs in through a development-only endpoint (`POST /api/v1/dev/token`, mounted only when `AUTH_BACKEND=dev_jwt` and `APP_ENV` is `local` or `test`); behind a real identity provider you paste a token. Seeded metrics end in July 2026, so seeded models read `STALE` until fresh samples arrive.
 
 Try the failure paths: register a version whose `artifact_uri` ends in `?sim=flaky:2`, approve it and deploy it to staging. The first two attempts time out and are retried automatically; the third succeeds. Read `GET /api/v1/deployments/{id}/events` to see each attempt.
 
