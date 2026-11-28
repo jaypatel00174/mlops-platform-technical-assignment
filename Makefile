@@ -6,7 +6,7 @@ BACKEND := backend
 COMPOSE ?= docker compose
 
 .DEFAULT_GOAL := help
-.PHONY: help bootstrap lint fmt typecheck arch test test-unit test-integration check up down migrate seed clean
+.PHONY: help bootstrap lint fmt typecheck arch test test-unit test-integration check up down migrate seed run token clean
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-18s %s\n", $$1, $$2}'
@@ -49,6 +49,15 @@ migrate: ## Apply database migrations
 
 seed: ## Load the sample data from data/seed (idempotent)
 	cd $(BACKEND) && $(UV) run python -m mlops.seed --data-dir ../data/seed
+
+run: ## Start the API on http://localhost:8000 (reload on change)
+	cd $(BACKEND) && $(UV) run uvicorn mlops.main:app --reload
+
+SUBJECT ?= alice
+ROLES ?= admin
+
+token: ## Print a development bearer token (make token SUBJECT=bob ROLES=approver)
+	@cd $(BACKEND) && $(UV) run python -m mlops.devtoken --subject $(SUBJECT) --roles $(ROLES)
 
 clean: ## Remove caches and build artefacts
 	find . -name __pycache__ -type d -prune -exec rm -rf {} +

@@ -93,6 +93,7 @@ def test_production_rejects_development_credentials_and_missing_identity(
 
     message = str(error.value)
     assert "development credentials" in message
+    assert "AUTH_BACKEND must be oidc_jwt" in message
     assert "OIDC_ISSUER" in message
     assert "OIDC_AUDIENCE" in message
     assert "OIDC_JWKS_URL" in message
@@ -100,6 +101,7 @@ def test_production_rejects_development_credentials_and_missing_identity(
 
 def test_production_accepts_a_complete_configuration(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("AUTH_BACKEND", "oidc_jwt")
     monkeypatch.setenv(
         "DATABASE_URL", "postgresql+psycopg://svc:s3cret-value@db.internal:5432/mlops"
     )

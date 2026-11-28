@@ -1,0 +1,9 @@
+title = "mlops-platform gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Fake signing key used only by the API tests"
+paths = ['''backend/tests/support/api\.py''']
+regexes = ['''api-test-secret-that-is-long-enough-for-hs256-signing''']

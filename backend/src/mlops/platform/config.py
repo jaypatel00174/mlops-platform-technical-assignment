@@ -42,10 +42,13 @@ class Settings(BaseSettings):
     metrics_backend: Literal["sql"] = "sql"
     artifact_root: Path = Path("var/artifacts")
 
-    # identity (required in production)
+    # identity: dev_jwt is for local use and tests only; production must use oidc_jwt
+    auth_backend: Literal["dev_jwt", "oidc_jwt"] = "dev_jwt"
+    dev_jwt_secret: str = "dev-only-secret-change-me-0123456789abcdef"  # noqa: S105
     oidc_issuer: str | None = None
     oidc_audience: str | None = None
     oidc_jwks_url: str | None = None
+    oidc_roles_claim: str = "roles"
 
     @model_validator(mode="after")
     def _refuse_unsafe_production_configuration(self) -> Settings:
@@ -55,6 +58,8 @@ class Settings(BaseSettings):
         problems: list[str] = []
         if _DEVELOPMENT_CREDENTIALS in self.database_url:
             problems.append("DATABASE_URL uses the development credentials")
+        if self.auth_backend != "oidc_jwt":
+            problems.append("AUTH_BACKEND must be oidc_jwt in production")
         problems.extend(
             f"{name.upper()} is required in production"
             for name in ("oidc_issuer", "oidc_audience", "oidc_jwks_url")
