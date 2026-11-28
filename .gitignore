@@ -3,6 +3,26 @@
 .env.*
 !.env.example
 
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Node (frontend, added in a later milestone)
+node_modules/
+dist/
+.angular/
+
+# Local runtime data
+var/
+
 # OS / editor
 .DS_Store
 .idea/
