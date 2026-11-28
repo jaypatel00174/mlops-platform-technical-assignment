@@ -14,6 +14,7 @@ from mlops.deployment.api.routes import router as deployment_router
 from mlops.deployment.application.ports import ModelRuntime
 from mlops.governance.api.routes import router as governance_router
 from mlops.kernel.ports import Clock, IdGenerator
+from mlops.monitoring.api.routes import router as monitoring_router
 from mlops.platform.auth import DevJwtIdentityProvider, IdentityProvider, OidcJwtIdentityProvider
 from mlops.platform.config import Settings
 from mlops.platform.health import build_health_router
@@ -21,7 +22,7 @@ from mlops.platform.middleware import RequestContextMiddleware
 from mlops.platform.problem import install_error_handlers
 from mlops.platform.runtime import SystemClock, UuidGenerator
 from mlops.registry.api.routes import router as registry_router
-from mlops.wiring import UnitOfWorkFactory, build_runtime
+from mlops.wiring import UnitOfWorkFactory, build_health_thresholds, build_runtime
 
 DEV_ISSUER = "mlops-dev"
 DEV_AUDIENCE = "mlops-platform"
@@ -74,6 +75,7 @@ def create_app(
         openapi_tags=[
             {"name": "registry", "description": "Models, versions and their lifecycle"},
             {"name": "deployments", "description": "Asynchronous deployments, retry, rollback"},
+            {"name": "monitoring", "description": "Metric ingest, series, health, comparison"},
             {"name": "governance", "description": "Approvals and the audit trail"},
             {"name": "health", "description": "Liveness and readiness"},
         ],
@@ -87,9 +89,14 @@ def create_app(
         clock=clock,
         ids=ids or UuidGenerator(),
         runtime=runtime or build_runtime(settings),
+        health_thresholds=build_health_thresholds(settings),
+        metrics_max_batch=settings.metrics_max_batch,
+        metrics_max_series_rows=settings.metrics_max_series_rows,
     )
 
     app.include_router(build_health_router(session_factory))
+    # Before the registry router: `/versions/compare` must win over `/versions/{version}`.
+    app.include_router(monitoring_router)
     app.include_router(registry_router)
     app.include_router(deployment_router)
     app.include_router(governance_router)

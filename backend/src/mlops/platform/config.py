@@ -43,6 +43,12 @@ class Settings(BaseSettings):
     artifact_root: Path = Path("var/artifacts")
 
     # worker: how often it polls, how long it holds an event, and how it backs off
+    # monitoring: ingest limits and the health rules that can be tuned per deployment
+    metrics_max_batch: int = Field(default=1000, ge=1, le=10_000)
+    metrics_max_series_rows: int = Field(default=100_000, ge=1000)
+    health_stale_after_seconds: float = Field(default=86_400.0, gt=0)
+    health_window_seconds: float = Field(default=3600.0, gt=0)
+
     worker_poll_seconds: float = Field(default=2.0, gt=0)
     worker_batch_size: int = Field(default=10, ge=1, le=100)
     # A lease must outlast one deployment; reconcile_stale_seconds must outlast the lease.
