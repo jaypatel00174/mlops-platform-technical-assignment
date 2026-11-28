@@ -201,6 +201,22 @@ class RegistryService:
         changed = current.mark_approved(now) if approved else current.mark_rejected(now)
         return current, self._versions.save(changed)
 
+    def promote_after_deployment(
+        self, *, actor: str, model_id: str, version: str, environment: str
+    ) -> ModelVersion:
+        """Advance the stage once a deployment succeeded (staging, then production).
+
+        Idempotent: a redelivered event, or a rollback to a version that already reached
+        production, leaves the stage as it is and writes no audit entry.
+        """
+        current = self.get_version(model_id, version)
+        promoted = current.after_successful_deployment(environment, self._clock.now())
+        if promoted.stage is current.stage:
+            return current
+        saved = self._versions.save(promoted)
+        self._record_change("version.promoted", actor, current, saved)
+        return saved
+
     # -- helpers ---------------------------------------------------------------------------
 
     def _require_model(self, model_id: str) -> Model:

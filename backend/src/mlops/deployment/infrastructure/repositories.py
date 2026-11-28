@@ -6,10 +6,10 @@ and environment, and optimistic-lock counters make every update a compare-and-sw
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, cast
 
-from sqlalchemy import CursorResult, delete, select
+from sqlalchemy import CursorResult, and_, delete, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.exc import StaleDataError
@@ -177,6 +177,38 @@ class SqlDeploymentRepository:
             raise StaleVersion(_STALE_MESSAGE, deployment_id=deployment.id) from error
         return _deployment_from_row(row)
 
+    def has_succeeded(self, model_id: str, version: str, environment: str) -> bool:
+        """True if this version has a SUCCEEDED deployment in the environment (promotion gate)."""
+        row = self._session.scalar(
+            select(DeploymentRow.id)
+            .where(
+                DeploymentRow.tenant_id == self._tenant_id,
+                DeploymentRow.model_id == model_id,
+                DeploymentRow.version == version,
+                DeploymentRow.environment == environment,
+                DeploymentRow.status == DeploymentStatus.SUCCEEDED.value,
+                DeploymentRow.type == DeploymentType.DEPLOY.value,
+            )
+            .limit(1)
+        )
+        return row is not None
+
+    def find_stale(
+        self, statuses: frozenset[DeploymentStatus], *, before: datetime, limit: int = 50
+    ) -> list[Deployment]:
+        """Deployments in `statuses` that have not changed since `before` (crash recovery)."""
+        rows = self._session.scalars(
+            select(DeploymentRow)
+            .where(
+                DeploymentRow.tenant_id == self._tenant_id,
+                DeploymentRow.status.in_([status.value for status in statuses]),
+                DeploymentRow.updated_at < before,
+            )
+            .order_by(DeploymentRow.updated_at, DeploymentRow.id)
+            .limit(limit)
+        )
+        return [_deployment_from_row(row) for row in rows]
+
     # -- attempts --------------------------------------------------------------------------
 
     def record_attempt_started(self, deployment_id: str, attempt_no: int, now: datetime) -> None:
@@ -309,6 +341,17 @@ class SqlEnvironmentBindingRepository:
             raise StaleVersion(_STALE_MESSAGE, model_id=binding.model_id) from error
         return self._to_domain(row)
 
+    def list_for_environment(self, environment: str) -> list[EnvironmentBinding]:
+        rows = self._session.scalars(
+            select(EnvironmentBindingRow)
+            .where(
+                EnvironmentBindingRow.tenant_id == self._tenant_id,
+                EnvironmentBindingRow.environment == environment,
+            )
+            .order_by(EnvironmentBindingRow.model_id)
+        )
+        return [self._to_domain(row) for row in rows]
+
     def live_environments(self, model_id: str, version: str) -> list[str]:
         """Environments where this version is the current deployment (used by the archive rule)."""
         rows = self._session.scalars(
@@ -372,8 +415,84 @@ class SqlOutboxRepository:
                 OutboxEventRow.id == event_id, OutboxEventRow.tenant_id == self._tenant_id
             )
         )
+        return self._to_event(row) if row else None
+
+    def claim_batch(
+        self, worker_id: str, now: datetime, lease: timedelta, limit: int = 10
+    ) -> list[OutboxEvent]:
+        """Take up to `limit` due events for this worker, across tenants.
+
+        `FOR UPDATE SKIP LOCKED` lets many workers poll the same table without blocking each
+        other or taking the same row. An event whose lease expired (its worker died) is due
+        again, which is what makes delivery at-least-once.
+        """
+        due = or_(
+            and_(
+                OutboxEventRow.status == OutboxStatus.PENDING.value,
+                OutboxEventRow.available_at <= now,
+            ),
+            and_(
+                OutboxEventRow.status == OutboxStatus.CLAIMED.value,
+                OutboxEventRow.lease_until <= now,
+            ),
+        )
+        rows = self._session.scalars(
+            select(OutboxEventRow)
+            .where(due)
+            .order_by(OutboxEventRow.available_at, OutboxEventRow.id)
+            .limit(limit)
+            .with_for_update(skip_locked=True)
+        ).all()
+        claimed: list[OutboxEvent] = []
+        for row in rows:
+            event = self._to_event(row).claim(worker_id, now, lease)
+            self._write(row, event)
+            claimed.append(event)
+        self._session.flush()
+        return claimed
+
+    def release(self, event: OutboxEvent, *, worker_id: str) -> None:
+        """Store the outcome of handling an event (done, rescheduled or dead).
+
+        Only the worker that still holds the lease may do this. If the lease expired and another
+        worker took over, this raises StaleVersion and the caller abandons its result.
+        """
+        row = self._session.scalar(
+            select(OutboxEventRow).where(
+                OutboxEventRow.id == event.id, OutboxEventRow.tenant_id == self._tenant_id
+            )
+        )
         if row is None:
-            return None
+            raise NotFound(f"outbox event {event.id!r} does not exist", id=event.id)
+        if row.status != OutboxStatus.CLAIMED.value or row.locked_by != worker_id:
+            raise StaleVersion(
+                "the lease on this outbox event is no longer held",
+                event_id=event.id,
+                worker_id=worker_id,
+            )
+        self._write(row, event)
+        self._session.flush()
+
+    def open_deployment_ids(self) -> set[str]:
+        """Deployments that still have a pending or claimed event (used by the reconciler)."""
+        rows = self._session.scalars(
+            select(OutboxEventRow.payload).where(
+                OutboxEventRow.tenant_id == self._tenant_id,
+                OutboxEventRow.status.in_([OutboxStatus.PENDING.value, OutboxStatus.CLAIMED.value]),
+            )
+        )
+        return {str(payload["deployment_id"]) for payload in rows if payload.get("deployment_id")}
+
+    @staticmethod
+    def _write(row: OutboxEventRow, event: OutboxEvent) -> None:
+        row.status = event.status.value
+        row.attempts = event.attempts
+        row.available_at = event.available_at
+        row.locked_by = event.locked_by
+        row.lease_until = event.lease_until
+
+    @staticmethod
+    def _to_event(row: OutboxEventRow) -> OutboxEvent:
         return OutboxEvent(
             id=row.id,
             type=row.type,
