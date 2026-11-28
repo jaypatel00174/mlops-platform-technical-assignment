@@ -34,7 +34,18 @@ make bootstrap     # creates .env from .env.example, installs Python 3.12 depend
 make up            # starts PostgreSQL (docker compose)
 make migrate       # applies database migrations
 make seed          # loads the sample data from data/seed (idempotent)
+make run           # starts the API on http://localhost:8000 (Swagger UI at /docs)
 ```
+
+Call the API with a development token (local only; production requires `AUTH_BACKEND=oidc_jwt`):
+
+```bash
+TOKEN=$(make token SUBJECT=alice ROLES=admin)
+curl -H "Authorization: Bearer $TOKEN" "http://localhost:8000/api/v1/models?limit=5"
+curl http://localhost:8000/health/ready
+```
+
+Roles: `viewer`, `ml-engineer`, `approver`, `release-manager`, `admin`, `service`. In Swagger UI, click Authorize and paste the token.
 
 ## Tests and quality checks
 
@@ -68,17 +79,21 @@ Feature branches merge into `dev` by pull request; `dev` is promoted to `main` b
 | Milestone | Scope | Status |
 |---|---|---|
 | Design baseline | Architecture, ADRs, API design, leadership artifacts | Done |
-| M0 Foundations | Tooling, configuration, Compose database, CI, architecture rules | Implemented, in review |
-| M1 Domain and persistence | State machines, policy, persistence, migrations, seed loader | Implemented, in review |
-| M2 Registry and governance API | Models, versions, approvals, error envelope, RBAC | Not started |
+| M0 Foundations | Tooling, configuration, Compose database, CI, architecture rules | Done |
+| M1 Domain and persistence | State machines, policy, persistence, migrations, seed loader | Done |
+| M2 Registry and governance API | Models, versions, approvals, error envelope, RBAC | Done |
 | M3 Async deployments | Outbox, worker, idempotency, retry, rollback, reconciler | Not started |
 | M4 Monitoring and UI | Metrics API, Angular views | Not started |
 | M5 Packaging and CI | Full Compose stack, smoke test | Not started |
 
-What exists today: the domain rules (lifecycle, promotion policy, approvals with separation of duties, deployment status machine, failure classes, rollback safety, idempotency), the PostgreSQL schema with its concurrency guards, repositories, and an idempotent seed loader. There is **no HTTP API, worker or UI yet**.
+What exists today: the domain rules (lifecycle, promotion policy, approvals with separation of duties, deployment status machine, failure classes, rollback safety, idempotency), the PostgreSQL schema with its concurrency guards, repositories, and an idempotent seed loader. On top of that, the registry and governance HTTP API (`/api/v1/models`, versions, validate, approve, reject, archive, audit events) with RFC 7807 errors, JWT auth, RBAC, ETag/If-Match and cursor pagination. There is **no deployment endpoint, worker or UI yet**; those are M3 and M4.
+
+API notes: approve and reject are actions on the version resource (`POST /api/v1/models/{id}/versions/{v}/approve`). Each request runs in one database transaction, and role checks happen before any data is read.
 
 Known limitations at this stage (the full list will be in `docs/known-limitations.md`):
 
+- `validate` does not yet check that the artifact is reachable.
+- Blocking an unapproved version from production is tested at domain level; the API-level scenario arrives with `POST /deployments` in M3.
 - Model ids are globally unique. `tenant_id` is stored and every repository read is filtered by it, but composite tenant keys are not in place yet.
 - `metric_sample` is a plain table. Monthly partitioning and rollups are a later PostgreSQL-only migration.
 - The audit table is made append-only by a database trigger, but the application database role is not yet restricted to insert-only privileges.
