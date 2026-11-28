@@ -1,0 +1,15 @@
+# Optional local hooks. Install once with:  uvx pre-commit install
+# They call the project's own pinned tools, so they always match CI.
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check
+        entry: uv run --project backend ruff check --fix --config backend/pyproject.toml
+        language: system
+        types: [python]
+      - id: ruff-format
+        name: ruff format
+        entry: uv run --project backend ruff format --config backend/pyproject.toml
+        language: system
+        types: [python]
