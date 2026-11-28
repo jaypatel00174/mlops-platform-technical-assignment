@@ -35,7 +35,10 @@ make up            # starts PostgreSQL (docker compose)
 make migrate       # applies database migrations
 make seed          # loads the sample data from data/seed (idempotent)
 make run           # starts the API on http://localhost:8000 (Swagger UI at /docs)
+make worker        # in a second terminal: runs the deployments the API accepts
 ```
+
+The API only records a deployment request and answers `202`. The worker does the work, so without `make worker` a deployment stays `REQUESTED`. You can start several workers; they share the queue safely.
 
 Call the API with a development token (local only; production requires `AUTH_BACKEND=oidc_jwt`):
 
@@ -82,18 +85,24 @@ Feature branches merge into `dev` by pull request; `dev` is promoted to `main` b
 | M0 Foundations | Tooling, configuration, Compose database, CI, architecture rules | Done |
 | M1 Domain and persistence | State machines, policy, persistence, migrations, seed loader | Done |
 | M2 Registry and governance API | Models, versions, approvals, error envelope, RBAC | Done |
-| M3 Async deployments | Outbox, worker, idempotency, retry, rollback, reconciler | Not started |
+| M3 Async deployments | Outbox, worker, idempotency, retry, rollback, reconciler | Implemented, in review |
 | M4 Monitoring and UI | Metrics API, Angular views | Not started |
 | M5 Packaging and CI | Full Compose stack, smoke test | Not started |
 
-What exists today: the domain rules (lifecycle, promotion policy, approvals with separation of duties, deployment status machine, failure classes, rollback safety, idempotency), the PostgreSQL schema with its concurrency guards, repositories, and an idempotent seed loader. On top of that, the registry and governance HTTP API (`/api/v1/models`, versions, validate, approve, reject, archive, audit events) with RFC 7807 errors, JWT auth, RBAC, ETag/If-Match and cursor pagination. There is **no deployment endpoint, worker or UI yet**; those are M3 and M4.
+What exists today: the domain rules (lifecycle, promotion policy, approvals with separation of duties, deployment status machine, failure classes, rollback safety, idempotency), the PostgreSQL schema with its concurrency guards, repositories, and an idempotent seed loader. On top of that, the registry and governance HTTP API (`/api/v1/models`, versions, validate, approve, reject, archive, audit events) with RFC 7807 errors, JWT auth, RBAC, ETag/If-Match and cursor pagination. M3 adds asynchronous deployments: `POST /api/v1/deployments` (requires an `Idempotency-Key`, answers `202`), status and timeline endpoints, `retry`, `rollback` and `GET /environments/{env}/bindings`. A transactional outbox feeds a worker that validates, deploys through a `ModelRuntime` port (a simulated runtime ships; a failing artifact can be requested with `?sim=timeout`, `?sim=reject`, `?sim=flaky:2` or `?sim=missing` on the artifact URI), retries transient failures with jittered backoff, and records every attempt. A reconciler repairs deployments a crashed worker left half done. There is **no metrics API or UI yet**; those are M4.
+
+Try the failure paths: register a version whose `artifact_uri` ends in `?sim=flaky:2`, approve it and deploy it to staging. The first two attempts time out and are retried automatically; the third succeeds. Read `GET /api/v1/deployments/{id}/events` to see each attempt.
 
 API notes: approve and reject are actions on the version resource (`POST /api/v1/models/{id}/versions/{v}/approve`). Each request runs in one database transaction, and role checks happen before any data is read.
 
 Known limitations at this stage (the full list will be in `docs/known-limitations.md`):
 
 - `validate` does not yet check that the artifact is reachable.
-- Blocking an unapproved version from production is tested at domain level; the API-level scenario arrives with `POST /deployments` in M3.
+- `Idempotency-Key` is supported on `POST /deployments` only. Retry and rollback are protected by state checks (only a `FAILED` deployment can be retried; only one deployment can be in flight) rather than by keys.
+- Two simultaneous requests with the same key can both reach the database; one wins and the other gets `409`. A sequential repeat is replayed.
+- The reconciler runs inside the worker for the default tenant only. There is no worker heartbeat in `/health/ready` yet.
+- Finding events that still have work (`open_deployment_ids`) reads event payloads in Python; fine at this scale, to be replaced by an indexed column if the outbox grows large.
+- The runtime is simulated. Artifact reachability is a runtime check at deploy time, not at `validate`.
 - Model ids are globally unique. `tenant_id` is stored and every repository read is filtered by it, but composite tenant keys are not in place yet.
 - `metric_sample` is a plain table. Monthly partitioning and rollups are a later PostgreSQL-only migration.
 - The audit table is made append-only by a database trigger, but the application database role is not yet restricted to insert-only privileges.

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 API_NOW = datetime(2026, 1, 15, 12, 0, 0, tzinfo=UTC)
@@ -34,6 +34,19 @@ def version_payload(version: str = "1.0.0", **overrides: Any) -> dict[str, Any]:
 class FixedClock:
     def now(self) -> datetime:
         return API_NOW
+
+
+class AdjustableClock:
+    """Starts at API_NOW and only moves when a test says so (backoff, leases, stale work)."""
+
+    def __init__(self, start: datetime = API_NOW) -> None:
+        self._now = start
+
+    def now(self) -> datetime:
+        return self._now
+
+    def advance(self, **kwargs: float) -> None:
+        self._now += timedelta(**kwargs)
 
 
 class SequentialIds:

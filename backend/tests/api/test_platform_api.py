@@ -141,6 +141,12 @@ def test_the_openapi_contract_lists_every_endpoint(client: TestClient) -> None:
 
     assert sorted(spec["paths"]) == [
         "/api/v1/audit-events",
+        "/api/v1/deployments",
+        "/api/v1/deployments/{deployment_id}",
+        "/api/v1/deployments/{deployment_id}/events",
+        "/api/v1/deployments/{deployment_id}/retry",
+        "/api/v1/deployments/{deployment_id}/rollback",
+        "/api/v1/environments/{environment}/bindings",
         "/api/v1/models",
         "/api/v1/models/{model_id}",
         "/api/v1/models/{model_id}/versions",

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Iterator
+from datetime import timedelta
 from typing import Any
 
 import pytest
@@ -10,10 +11,14 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session, sessionmaker
 
 from mlops.app import DEV_AUDIENCE, DEV_ISSUER, create_app
+from mlops.deployment.application.reconciler import Reconciler
+from mlops.deployment.application.worker import DeploymentWorker
+from mlops.deployment.infrastructure.simulated_runtime import SimulatedRuntime
 from mlops.kernel.vocabulary import Role
 from mlops.platform.auth import issue_dev_token
 from mlops.platform.config import Settings
-from support.api import API_NOW, SECRET, FixedClock, SequentialIds
+from mlops.worker import build_worker
+from support.api import API_NOW, SECRET, AdjustableClock, SequentialIds
 
 
 @pytest.fixture
@@ -22,13 +27,35 @@ def settings() -> Settings:
 
 
 @pytest.fixture
-def app_factory(settings: Settings, session_factory: sessionmaker[Session]) -> Callable[..., Any]:
+def clock() -> AdjustableClock:
+    return AdjustableClock()
+
+
+@pytest.fixture
+def ids() -> SequentialIds:
+    return SequentialIds()
+
+
+@pytest.fixture
+def runtime() -> SimulatedRuntime:
+    return SimulatedRuntime()
+
+
+@pytest.fixture
+def app_factory(
+    settings: Settings,
+    session_factory: sessionmaker[Session],
+    clock: AdjustableClock,
+    ids: SequentialIds,
+    runtime: SimulatedRuntime,
+) -> Callable[..., Any]:
     def build(**overrides: Any) -> Any:
         values: dict[str, Any] = {
             "settings": settings,
             "session_factory": session_factory,
-            "clock": FixedClock(),
-            "ids": SequentialIds(),
+            "clock": clock,
+            "ids": ids,
+            "runtime": runtime,
         }
         values.update(overrides)
         return create_app(**values)
@@ -54,10 +81,30 @@ def auth() -> Callable[..., dict[str, str]]:
             audience=DEV_AUDIENCE,
             now=API_NOW,
             tenant=tenant,
+            ttl=timedelta(hours=12),  # long enough to move the clock for backoff and leases
         )
         return {"Authorization": f"Bearer {token}"}
 
     return headers
+
+
+@pytest.fixture
+def worker_pair(
+    settings: Settings,
+    session_factory: sessionmaker[Session],
+    clock: AdjustableClock,
+    ids: SequentialIds,
+    runtime: SimulatedRuntime,
+) -> tuple[DeploymentWorker, Reconciler]:
+    """The real worker and reconciler on the test database, sharing the test clock and ids."""
+    return build_worker(
+        settings, session_factory, runtime=runtime, clock=clock, ids=ids, worker_id="worker-test"
+    )
+
+
+@pytest.fixture
+def worker(worker_pair: tuple[DeploymentWorker, Reconciler]) -> DeploymentWorker:
+    return worker_pair[0]
 
 
 # Identities used across the API tests.
