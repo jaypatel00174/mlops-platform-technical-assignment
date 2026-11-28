@@ -32,6 +32,7 @@ class Role(StrEnum):
     APPROVER = "approver"
     RELEASE_MANAGER = "release-manager"
     ADMIN = "admin"
+    SERVICE = "service"  # machine identity for metric agents
 
 
 # Environment names the platform governs. Other names are validated by governance policy.
