@@ -1,0 +1,101 @@
+<div class="page">
+  <header class="page-head">
+    <div>
+      <div class="eyebrow">Operations</div>
+      <h1>Deployments</h1>
+      <p class="soft">
+        Every deployment and rollback.
+        @if (anyMoving()) {
+          <span class="livepill"><i></i> Updating live</span>
+        }
+      </p>
+    </div>
+    <div class="actions">
+      <button mat-stroked-button type="button" (click)="refresh()">
+        <app-icon name="refresh" [size]="16" /> Refresh
+      </button>
+    </div>
+  </header>
+
+  <section class="toolbar" aria-label="Filters">
+    <div class="segmented" role="group" aria-label="Status">
+      @for (g of groups; track g.key) {
+        <button type="button" [attr.aria-pressed]="group() === g.key" (click)="group.set(g.key)">
+          {{ g.label }} <span class="count num">{{ counts()[g.key] }}</span>
+        </button>
+      }
+    </div>
+    <div class="segmented" role="group" aria-label="Environment">
+      @for (e of environments; track e) {
+        <button
+          type="button"
+          [attr.aria-pressed]="environment() === e"
+          (click)="environment.set(e)"
+        >
+          {{ e === 'all' ? 'All environments' : e }}
+        </button>
+      }
+    </div>
+    <label class="search">
+      <app-icon name="search" [size]="18" />
+      <span class="sr-only">Filter by model or version</span>
+      <input
+        type="search"
+        placeholder="Filter by model or version"
+        [value]="text()"
+        (input)="setText($event)"
+      />
+    </label>
+  </section>
+
+  <div [class.split]="id()" class="layout">
+    <div class="card flush">
+      @if (list.error(); as problem) {
+        <div class="pad"><app-error-panel [error]="problem" (retry)="list.load()" /></div>
+      } @else if (list.loading() && !list.data()) {
+        <div class="pad">
+          @for (n of skeletons; track n) {
+            <app-skeleton [height]="44" />
+          }
+        </div>
+      } @else if (rows().length === 0) {
+        @if (all().length === 0) {
+          <app-empty
+            icon="rocket"
+            title="No deployments yet"
+            message="Deploy an approved version from its model page. It will appear here and update live."
+          />
+        } @else {
+          <app-empty
+            icon="filter"
+            title="Nothing matches these filters"
+            message="Try another status or environment."
+          >
+            <button mat-stroked-button type="button" (click)="clear()">Clear filters</button>
+          </app-empty>
+        }
+      } @else {
+        <app-deployment-table
+          [deployments]="rows()"
+          [selectedId]="id() ?? null"
+          [compact]="!!id()"
+          (select)="select($event)"
+        />
+      }
+      @if (list.refreshFailed()) {
+        <p class="stale-note" role="status">
+          <app-icon name="wifi" [size]="14" /> Could not refresh. Showing the last data.
+        </p>
+      }
+    </div>
+
+    @if (id(); as selected) {
+      <app-deployment-detail
+        [id]="selected"
+        (closed)="close()"
+        (changed)="list.refresh()"
+        (opened)="select($event)"
+      />
+    }
+  </div>
+</div>

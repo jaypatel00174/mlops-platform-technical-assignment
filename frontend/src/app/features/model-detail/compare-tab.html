@@ -1,0 +1,138 @@
+@if (names().length < 2) {
+  <div class="card">
+    <app-empty
+      icon="compare"
+      title="Two versions are needed to compare"
+      message="Register another version and its metrics will line up side by side here."
+    />
+  </div>
+} @else {
+  <section class="controls" aria-label="Comparison choices">
+    <label class="pick">
+      <span class="soft">From</span>
+      <mat-select
+        [value]="a()"
+        (selectionChange)="a.set($event.value)"
+        aria-label="Baseline version"
+      >
+        @for (name of names(); track name) {
+          <mat-option [value]="name">v{{ name }}</mat-option>
+        }
+      </mat-select>
+    </label>
+    <app-icon name="chevron" class="arrow" />
+    <label class="pick">
+      <span class="soft">To</span>
+      <mat-select
+        [value]="b()"
+        (selectionChange)="b.set($event.value)"
+        aria-label="Candidate version"
+      >
+        @for (name of names(); track name) {
+          <mat-option [value]="name">v{{ name }}</mat-option>
+        }
+      </mat-select>
+    </label>
+    <label class="pick">
+      <span class="soft">in</span>
+      <mat-select
+        [value]="environment()"
+        (selectionChange)="environment.set($event.value)"
+        aria-label="Environment"
+      >
+        @for (name of environments; track name) {
+          <mat-option [value]="name">{{ name }}</mat-option>
+        }
+      </mat-select>
+    </label>
+  </section>
+
+  @if (!canCompare()) {
+    <div class="card">
+      <app-empty
+        icon="compare"
+        title="Choose two different versions"
+        message="Pick a baseline and a candidate above."
+      />
+    </div>
+  } @else if (result.error(); as problem) {
+    <app-error-panel [error]="problem" (retry)="result.load()" />
+  } @else if (result.loading() && !result.data()) {
+    <div class="card">
+      <app-skeleton [height]="16" width="40%" /><app-skeleton [height]="180" />
+    </div>
+  } @else if (result.data(); as data) {
+    <div class="grid grid-2">
+      <div class="card">
+        <h3>Details</h3>
+        <table class="data tight">
+          <thead>
+            <tr>
+              <th></th>
+              <th>v{{ data.a.version }}</th>
+              <th>v{{ data.b.version }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of metadataRows(data); track row.label) {
+              <tr [class.differs]="row.a !== row.b">
+                <td class="soft">{{ row.label }}</td>
+                <td>{{ row.a }}</td>
+                <td>{{ row.b }}</td>
+              </tr>
+            }
+            <tr>
+              <td class="soft">Registered</td>
+              <td>{{ data.a.created_at | dateTime }}</td>
+              <td>{{ data.b.created_at | dateTime }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h3>Metrics in {{ data.environment }}</h3>
+          @if (rows().length) {
+            <span class="soft">{{ summary().better }} better · {{ summary().worse }} worse</span>
+          }
+        </div>
+        @if (!data.deltas) {
+          <app-empty
+            icon="pulse"
+            title="Not enough data to compare"
+            message="One of these versions has not reported metrics in this environment, so no numbers are invented."
+          />
+        } @else {
+          <ul class="deltas">
+            @for (row of rows(); track row.key) {
+              <li [class]="row.verdict">
+                <div class="spread">
+                  <strong>{{ row.label }}</strong>
+                  <span class="change num">
+                    <app-icon
+                      [name]="row.up ? 'trend' : 'chevron'"
+                      [size]="14"
+                      class="dir"
+                      [class.down]="!row.up"
+                    />
+                    {{ row.change }}
+                  </span>
+                </div>
+                <div class="values soft num">
+                  <span>{{ row.a }}</span> <app-icon name="chevron" [size]="12" />
+                  <span>{{ row.b }}</span>
+                </div>
+                <div class="meter"><i [style.width.%]="row.width"></i></div>
+              </li>
+            }
+          </ul>
+          <p class="help-text note">
+            Green means the candidate is better for that metric (lower latency, errors and drift;
+            higher quality, throughput and availability). Means over all samples in the environment.
+          </p>
+        }
+      </div>
+    </div>
+  }
+}

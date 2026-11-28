@@ -1,0 +1,141 @@
+<div class="page">
+  <header class="page-head">
+    <div>
+      <div class="eyebrow">Registry</div>
+      <h1>Models</h1>
+      <p class="soft">Every model, its versions and how it is doing.</p>
+    </div>
+    <div class="actions">
+      @if (auth.can('registerModel')) {
+        <button mat-flat-button type="button" (click)="register()">
+          <app-icon name="plus" [size]="16" /> Register model
+        </button>
+      }
+    </div>
+  </header>
+
+  <section class="toolbar" aria-label="Filters">
+    <label class="search">
+      <app-icon name="search" [size]="18" />
+      <span class="sr-only">Search models</span>
+      <input
+        type="search"
+        placeholder="Search by name or id"
+        [value]="search()"
+        (input)="search.set($any($event.target).value)"
+      />
+    </label>
+
+    @if (frameworks().length > 1) {
+      <mat-select
+        class="framework"
+        [value]="framework()"
+        (selectionChange)="framework.set($event.value)"
+        aria-label="Framework"
+        placeholder="All frameworks"
+      >
+        <mat-option value="">All frameworks</mat-option>
+        @for (name of frameworks(); track name) {
+          <mat-option [value]="name">{{ name }}</mat-option>
+        }
+      </mat-select>
+    }
+
+    <div class="segmented" role="group" aria-label="Health">
+      @for (option of healthFilters; track option.key) {
+        <button
+          type="button"
+          [attr.aria-pressed]="healthFilter() === option.key"
+          (click)="healthFilter.set(option.key)"
+        >
+          {{ option.label }}
+        </button>
+      }
+    </div>
+  </section>
+
+  @if (error(); as problem) {
+    <app-error-panel [error]="problem" (retry)="reload()" />
+  } @else if (loading()) {
+    <div class="grid grid-3">
+      @for (n of skeletons; track n) {
+        <div class="card">
+          <div class="row">
+            <app-skeleton [height]="44" width="44px" /><app-skeleton [height]="18" width="55%" />
+          </div>
+          <app-skeleton [height]="12" width="80%" />
+          <app-skeleton [height]="12" width="45%" />
+        </div>
+      }
+    </div>
+  } @else if (visible().length === 0) {
+    @if (filtering()) {
+      <div class="card">
+        <app-empty
+          icon="search"
+          title="No models match"
+          message="Try a different search or clear the filters."
+        >
+          <button mat-stroked-button type="button" (click)="clearFilters()">Clear filters</button>
+        </app-empty>
+      </div>
+    } @else {
+      <div class="card">
+        <app-empty
+          icon="cube"
+          title="No models registered yet"
+          message="Register a model to start tracking versions, approvals and deployments."
+        >
+          @if (auth.can('registerModel')) {
+            <button mat-flat-button type="button" (click)="register()">
+              Register the first model
+            </button>
+          }
+        </app-empty>
+      </div>
+    }
+  } @else {
+    <div class="grid grid-3">
+      @for (model of visible(); track model.id) {
+        <a class="card interactive model" [routerLink]="['/models', model.id]">
+          <div class="top">
+            <span class="avatar" [style.background]="gradient(model.id)">{{
+              initials(model.name)
+            }}</span>
+            <div class="names">
+              <strong>{{ model.name }}</strong>
+              <code class="soft">{{ model.id }}</code>
+            </div>
+            @if (store.statuses()[model.id]; as status) {
+              <app-chip kind="health" [value]="status.status" />
+            } @else if (store.pending() > 0) {
+              <app-skeleton [height]="24" width="76px" />
+            }
+          </div>
+          <div class="facts">
+            <span
+              ><app-icon name="layers" [size]="15" /> {{ model.version_count }}
+              {{ model.version_count === 1 ? 'version' : 'versions' }}</span
+            >
+            @if (model.latest_version) {
+              <span class="num">latest v{{ model.latest_version }}</span>
+            }
+            <span class="tag">{{ model.framework }}</span>
+          </div>
+          <div class="foot soft">
+            <span><app-icon name="user" [size]="14" /> {{ model.owner }}</span>
+            <span>Updated {{ model.updated_at | ago }}</span>
+          </div>
+        </a>
+      }
+    </div>
+
+    @if (nextCursor()) {
+      <div class="more">
+        <button mat-stroked-button type="button" [disabled]="loadingMore()" (click)="loadMore()">
+          {{ loadingMore() ? 'Loading…' : 'Load more models' }}
+        </button>
+      </div>
+    }
+  }
+</div>
