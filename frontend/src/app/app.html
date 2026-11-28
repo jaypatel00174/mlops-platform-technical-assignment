@@ -1,0 +1,94 @@
+@if (auth.signedIn()) {
+  <div class="shell">
+    @if (narrow() && menuOpen()) {
+      <div class="scrim" (click)="menuOpen.set(false)" aria-hidden="true"></div>
+    }
+
+    <aside class="nav" [class.open]="menuOpen()" [class.narrow]="narrow()" aria-label="Primary">
+      <a class="brand" routerLink="/" aria-label="MLOps Platform home">
+        <span class="mark"><app-icon name="sparkles" [size]="18" /></span>
+        <span>
+          <strong>MLOps</strong>
+          <small>Control plane</small>
+        </span>
+      </a>
+
+      <nav>
+        @for (item of nav; track item.path) {
+          <a
+            [routerLink]="item.path"
+            routerLinkActive="active"
+            [routerLinkActiveOptions]="{ exact: item.exact }"
+            class="nav-link"
+          >
+            <app-icon [name]="item.icon" [size]="19" />
+            {{ item.label }}
+          </a>
+        }
+      </nav>
+
+      <div class="nav-foot">
+        <div class="api-state" [class.down]="!apiOnline()" role="status">
+          <span class="pip"></span>
+          {{ apiOnline() ? 'API online' : 'API unreachable' }}
+        </div>
+      </div>
+    </aside>
+
+    <div class="main">
+      <header class="topbar">
+        @if (narrow()) {
+          <button
+            mat-icon-button
+            type="button"
+            aria-label="Open menu"
+            (click)="menuOpen.set(!menuOpen())"
+          >
+            <app-icon name="menu" />
+          </button>
+        }
+        <span class="spacer"></span>
+
+        <button
+          mat-icon-button
+          type="button"
+          [attr.aria-label]="'Theme: ' + theme.choice() + '. Click to change.'"
+          [matTooltip]="'Theme: ' + theme.choice()"
+          (click)="theme.cycle()"
+        >
+          <app-icon [name]="themeIcon()" />
+        </button>
+
+        <button class="user" type="button" [matMenuTriggerFor]="userMenu" aria-label="Account menu">
+          <span class="avatar">{{ userInitials() }}</span>
+          <span class="who">
+            <strong>{{ auth.subject() }}</strong>
+            <small>{{ roleLabel() }}</small>
+          </span>
+        </button>
+        <mat-menu #userMenu="matMenu" xPosition="before">
+          <div class="menu-head">
+            Signed in as <strong>{{ auth.subject() }}</strong>
+          </div>
+          <button mat-menu-item type="button" (click)="auth.signOut()">
+            <app-icon name="logout" [size]="18" /> Sign out
+          </button>
+        </mat-menu>
+      </header>
+
+      @if (!apiOnline()) {
+        <div class="banner" role="alert">
+          <app-icon name="wifi" [size]="18" />
+          The platform API is not answering. What you see may be out of date; it will recover by
+          itself when the API is back.
+        </div>
+      }
+
+      <main id="content">
+        <router-outlet />
+      </main>
+    </div>
+  </div>
+} @else {
+  <router-outlet />
+}

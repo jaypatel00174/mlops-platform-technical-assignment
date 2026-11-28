@@ -1,0 +1,54 @@
+// Design tokens: colours, radii, shadows. Semantic colours use light-dark() so one declaration
+// serves both modes. `color-scheme` is set by the OS preference or by the theme toggle.
+
+:root {
+  color-scheme: light dark;
+
+  --radius: 16px;
+  --radius-sm: 10px;
+  --radius-pill: 999px;
+
+  // Brand accents, also used for persona avatars and chart series.
+  --accent-blue: light-dark(#2563eb, #60a5fa);
+  --accent-violet: light-dark(#7c3aed, #a78bfa);
+  --accent-teal: light-dark(#0d9488, #2dd4bf);
+  --accent-amber: light-dark(#d97706, #fbbf24);
+  --accent-rose: light-dark(#e11d48, #fb7185);
+
+  // Status colours: a strong tone for text and marks, a soft tone for backgrounds.
+  --ok: light-dark(#15803d, #4ade80);
+  --ok-soft: light-dark(#dcfce7, #0b2e1a);
+  --warn: light-dark(#b45309, #fbbf24);
+  --warn-soft: light-dark(#fef3c7, #33260a);
+  --crit: light-dark(#b91c1c, #f87171);
+  --crit-soft: light-dark(#fee2e2, #3a1212);
+  --info: light-dark(#1d4ed8, #93c5fd);
+  --info-soft: light-dark(#dbeafe, #11233f);
+  --stale: light-dark(#6d28d9, #c4b5fd);
+  --stale-soft: light-dark(#ede9fe, #251a45);
+  --muted: light-dark(#52525b, #a1a1aa);
+  --muted-soft: light-dark(#f4f4f5, #232326);
+
+  // Surfaces. They sit on top of Material's own surface tokens.
+  --page: light-dark(#f6f7fb, #0b0d12);
+  --card: light-dark(#ffffff, #14171f);
+  --card-raised: light-dark(#ffffff, #1a1e28);
+  --border: light-dark(#e4e6ee, #262b38);
+  --text: light-dark(#14161c, #eceef4);
+  --text-soft: light-dark(#5b6172, #9aa1b4);
+
+  --shadow-sm: 0 1px 2px light-dark(rgb(16 24 40 / 6%), rgb(0 0 0 / 40%));
+  --shadow-md:
+    0 8px 24px -8px light-dark(rgb(16 24 40 / 14%), rgb(0 0 0 / 55%)),
+    0 2px 6px light-dark(rgb(16 24 40 / 6%), rgb(0 0 0 / 30%));
+
+  --focus: light-dark(#2563eb, #93c5fd);
+}
+
+html.theme-light {
+  color-scheme: light;
+}
+
+html.theme-dark {
+  color-scheme: dark;
+}
