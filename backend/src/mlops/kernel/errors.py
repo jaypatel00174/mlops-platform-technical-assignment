@@ -36,6 +36,12 @@ class InvalidTransition(DomainError):
     code = "INVALID_TRANSITION"
 
 
+class Unauthenticated(DomainError):
+    """No valid identity. Distinct from Forbidden: we do not know who is calling."""
+
+    code = "UNAUTHENTICATED"
+
+
 class Forbidden(DomainError):
     code = "FORBIDDEN"
 
