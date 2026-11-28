@@ -10,7 +10,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import model_validator
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Credentials that ship in `.env.example`. They are fine on a laptop and never in production.
@@ -42,6 +42,17 @@ class Settings(BaseSettings):
     metrics_backend: Literal["sql"] = "sql"
     artifact_root: Path = Path("var/artifacts")
 
+    # worker: how often it polls, how long it holds an event, and how it backs off
+    worker_poll_seconds: float = Field(default=2.0, gt=0)
+    worker_batch_size: int = Field(default=10, ge=1, le=100)
+    # A lease must outlast one deployment; reconcile_stale_seconds must outlast the lease.
+    worker_lease_seconds: float = Field(default=120.0, gt=0)
+    reconcile_interval_seconds: float = Field(default=30.0, gt=0)
+    reconcile_stale_seconds: float = Field(default=300.0, gt=0)
+    retry_max_attempts: int = Field(default=3, ge=1, le=10)
+    retry_base_delay_seconds: float = Field(default=2.0, gt=0)
+    retry_max_delay_seconds: float = Field(default=300.0, gt=0)
+
     # identity: dev_jwt is for local use and tests only; production must use oidc_jwt
     auth_backend: Literal["dev_jwt", "oidc_jwt"] = "dev_jwt"
     dev_jwt_secret: str = "dev-only-secret-change-me-0123456789abcdef"  # noqa: S105
@@ -52,6 +63,9 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _refuse_unsafe_production_configuration(self) -> Settings:
+        # A healthy but slow worker must not be mistaken for a dead one, in any environment.
+        if self.reconcile_stale_seconds <= self.worker_lease_seconds:
+            raise ValueError("RECONCILE_STALE_SECONDS must be longer than WORKER_LEASE_SECONDS")
         if self.app_env != "production":
             return self
 

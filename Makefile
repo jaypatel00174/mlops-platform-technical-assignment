@@ -6,7 +6,7 @@ BACKEND := backend
 COMPOSE ?= docker compose
 
 .DEFAULT_GOAL := help
-.PHONY: help bootstrap lint fmt typecheck arch test test-unit test-integration check up down migrate seed run token clean
+.PHONY: help bootstrap lint fmt typecheck arch test test-unit test-integration check up down migrate seed run worker token clean
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-18s %s\n", $$1, $$2}'
@@ -55,6 +55,9 @@ run: ## Start the API on http://localhost:8000 (reload on change)
 
 SUBJECT ?= alice
 ROLES ?= admin
+
+worker: ## Start the deployment worker (run alongside `make run`; start several to scale out)
+	cd $(BACKEND) && $(UV) run python -m mlops.worker
 
 token: ## Print a development bearer token (make token SUBJECT=bob ROLES=approver)
 	@cd $(BACKEND) && $(UV) run python -m mlops.devtoken --subject $(SUBJECT) --roles $(ROLES)
