@@ -384,7 +384,7 @@ erDiagram
 | VALIDATED to APPROVED | role `approver`; approver must differ from the registrant |
 | APPROVED to STAGING | caused by a successful staging deployment |
 | STAGING to PRODUCTION | caused by a successful production deployment; policy requires approval and a prior successful staging deployment |
-| any non-live stage to ARCHIVED | allowed; a PRODUCTION version only after it is superseded or undeployed |
+| any stage to ARCHIVED | allowed only when the version is not live in any environment. Superseding a version does not archive it, so it stays available as a rollback target until someone archives it |
 | rejected approval | the version stays VALIDATED, audit event recorded, resubmission allowed |
 
 Stage never changes by editing a field. It changes as a side effect of governance actions or deployment outcomes.
@@ -396,7 +396,7 @@ stateDiagram-v2
     VALIDATED --> APPROVED: approver differs from registrant
     APPROVED --> STAGING: staging deployment succeeded
     STAGING --> PRODUCTION: production deployment succeeded
-    PRODUCTION --> ARCHIVED: superseded or undeployed
+    PRODUCTION --> ARCHIVED: archived once it is no longer live
     ARCHIVED --> [*]
 
     note left of VALIDATED

@@ -163,7 +163,7 @@ stateDiagram-v2
     VALIDATED --> APPROVED: approver differs from registrant
     APPROVED --> STAGING: staging deployment succeeded
     STAGING --> PRODUCTION: production deployment succeeded
-    PRODUCTION --> ARCHIVED: superseded or undeployed
+    PRODUCTION --> ARCHIVED: archived once it is no longer live
     ARCHIVED --> [*]
 
     note left of VALIDATED
