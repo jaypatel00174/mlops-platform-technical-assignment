@@ -72,8 +72,20 @@ def check_deployment_allowed(
     caller without permission learns nothing about the state of a version; only then do the
     promotion rules run.
     """
-    policy = policy_for(environment, policies)
+    policy_for(environment, policies)
     require(roles, action_for_deployment(environment))
+    return check_promotion_rules(environment=environment, facts=facts, policies=policies)
+
+
+def check_promotion_rules(
+    *,
+    environment: str,
+    facts: DeploymentFacts,
+    policies: Mapping[str, EnvironmentPolicy] = DEFAULT_POLICIES,
+) -> EnvironmentPolicy:
+    """The promotion rules alone, with no caller. The worker repeats these before it acts,
+    because the version may have been rejected or archived since the request was accepted."""
+    policy = policy_for(environment, policies)
 
     if facts.stage is Stage.ARCHIVED:
         raise PolicyViolation(

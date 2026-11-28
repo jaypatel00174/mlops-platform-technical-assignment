@@ -112,3 +112,21 @@ def test_production_accepts_a_complete_configuration(monkeypatch: pytest.MonkeyP
     settings = Settings()
 
     assert settings.app_env == "production"
+
+
+def test_a_stale_threshold_not_longer_than_the_lease_is_refused(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Otherwise the reconciler would fail over a worker that is merely slow.
+    monkeypatch.setenv("WORKER_LEASE_SECONDS", "120")
+    monkeypatch.setenv("RECONCILE_STALE_SECONDS", "120")
+
+    with pytest.raises(ValidationError, match="RECONCILE_STALE_SECONDS"):
+        Settings()
+
+
+def test_retry_settings_have_sane_bounds(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("RETRY_MAX_ATTEMPTS", "0")
+
+    with pytest.raises(ValidationError):
+        Settings()
