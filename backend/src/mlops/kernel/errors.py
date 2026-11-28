@@ -28,6 +28,10 @@ class NotFound(DomainError):
     code = "NOT_FOUND"
 
 
+class AlreadyExists(DomainError):
+    code = "ALREADY_EXISTS"
+
+
 class InvalidTransition(DomainError):
     code = "INVALID_TRANSITION"
 

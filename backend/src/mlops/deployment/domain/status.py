@@ -27,6 +27,12 @@ class DeploymentType(StrEnum):
     ROLLBACK = "ROLLBACK"
 
 
+class AttemptOutcome(StrEnum):
+    STARTED = "STARTED"
+    SUCCEEDED = "SUCCEEDED"
+    FAILED = "FAILED"
+
+
 # Statuses covered by the partial unique index: at most one per (tenant, model, environment).
 IN_FLIGHT = frozenset(
     {DeploymentStatus.REQUESTED, DeploymentStatus.VALIDATING, DeploymentStatus.DEPLOYING}
