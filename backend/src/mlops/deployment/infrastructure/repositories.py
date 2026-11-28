@@ -341,6 +341,19 @@ class SqlEnvironmentBindingRepository:
             raise StaleVersion(_STALE_MESSAGE, model_id=binding.model_id) from error
         return self._to_domain(row)
 
+    def live_for_model(self, model_id: str) -> list[tuple[str, str]]:
+        """(version, environment) pairs that are live now for this model (monitoring needs it)."""
+        rows = self._session.execute(
+            select(DeploymentRow.version, EnvironmentBindingRow.environment)
+            .join(DeploymentRow, DeploymentRow.id == EnvironmentBindingRow.current_deployment_id)
+            .where(
+                EnvironmentBindingRow.tenant_id == self._tenant_id,
+                EnvironmentBindingRow.model_id == model_id,
+            )
+            .order_by(EnvironmentBindingRow.environment)
+        )
+        return [(version, environment) for version, environment in rows]
+
     def list_for_environment(self, environment: str) -> list[EnvironmentBinding]:
         rows = self._session.scalars(
             select(EnvironmentBindingRow)

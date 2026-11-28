@@ -33,6 +33,9 @@ from mlops.governance.application.audit import AuditService
 from mlops.governance.infrastructure.repositories import SqlApprovalRepository, SqlAuditRepository
 from mlops.kernel.identity import Principal
 from mlops.kernel.ports import Clock, IdGenerator
+from mlops.monitoring.application.services import MonitoringService
+from mlops.monitoring.domain.health import HealthThresholds
+from mlops.monitoring.infrastructure.repositories import SqlMetricSampleRepository
 from mlops.platform.config import Settings
 from mlops.platform.db import unit_of_work
 from mlops.registry.application.services import RegistryService
@@ -45,6 +48,7 @@ class Services:
     approvals: ApprovalService
     audit: AuditService
     deployments: DeploymentService
+    monitoring: MonitoringService
 
 
 def _registry_and_audit(
@@ -89,11 +93,17 @@ class UnitOfWorkFactory:
         clock: Clock,
         ids: IdGenerator,
         runtime: ModelRuntime,
+        health_thresholds: HealthThresholds | None = None,
+        metrics_max_batch: int = 1000,
+        metrics_max_series_rows: int = 100_000,
     ) -> None:
         self._session_factory = session_factory
         self._clock = clock
         self._ids = ids
         self._runtime = runtime
+        self._health_thresholds = health_thresholds
+        self._metrics_max_batch = metrics_max_batch
+        self._metrics_max_series_rows = metrics_max_series_rows
 
     @contextmanager
     def transaction(self, principal: Principal) -> Iterator[Services]:
@@ -114,8 +124,22 @@ class UnitOfWorkFactory:
                 clock=self._clock,
                 ids=self._ids,
             )
+            monitoring = MonitoringService(
+                metrics=SqlMetricSampleRepository(session, tenant),
+                registry=registry,
+                live_versions=SqlEnvironmentBindingRepository(session, tenant).live_for_model,
+                clock=self._clock,
+                tenant_id=tenant,
+                thresholds=self._health_thresholds,
+                max_batch=self._metrics_max_batch,
+                max_series_rows=self._metrics_max_series_rows,
+            )
             yield Services(
-                registry=registry, approvals=approvals, audit=audit, deployments=deployments
+                registry=registry,
+                approvals=approvals,
+                audit=audit,
+                deployments=deployments,
+                monitoring=monitoring,
             )
 
 
@@ -147,6 +171,13 @@ class SqlOutboxClaimer:
     ) -> list[OutboxEvent]:
         with unit_of_work(self._session_factory) as session:
             return SqlOutboxRepository(session).claim_batch(worker_id, now, lease, limit)
+
+
+def build_health_thresholds(settings: Settings) -> HealthThresholds:
+    return HealthThresholds(
+        stale_after=timedelta(seconds=settings.health_stale_after_seconds),
+        window=timedelta(seconds=settings.health_window_seconds),
+    )
 
 
 def build_runtime(settings: Settings) -> ModelRuntime:
