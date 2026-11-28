@@ -38,6 +38,37 @@ def test_values_come_from_environment_variables(monkeypatch: pytest.MonkeyPatch)
     assert settings.database_url == "sqlite:///:memory:"
 
 
+def test_a_dotenv_file_in_the_repo_root_is_read_when_running_from_backend(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """`make bootstrap` writes .env at the repo root; the app runs from backend/."""
+    backend = tmp_path / "backend"
+    backend.mkdir()
+    (tmp_path / ".env").write_text("LOG_LEVEL=WARNING\nDEFAULT_TENANT=acme\n", encoding="utf-8")
+    monkeypatch.chdir(backend)
+
+    settings = Settings()
+
+    assert settings.log_level == "WARNING"
+    assert settings.default_tenant == "acme"
+
+
+def test_a_local_dotenv_overrides_the_repo_root_and_the_environment_overrides_both(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    backend = tmp_path / "backend"
+    backend.mkdir()
+    (tmp_path / ".env").write_text("LOG_LEVEL=WARNING\nDEFAULT_TENANT=acme\n", encoding="utf-8")
+    (backend / ".env").write_text("LOG_LEVEL=ERROR\n", encoding="utf-8")
+    monkeypatch.chdir(backend)
+    monkeypatch.setenv("DEFAULT_TENANT", "from-environment")
+
+    settings = Settings()
+
+    assert settings.log_level == "ERROR"
+    assert settings.default_tenant == "from-environment"
+
+
 def test_invalid_adapter_choice_fails_fast(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("RUNTIME_BACKEND", "carrier-pigeon")
 

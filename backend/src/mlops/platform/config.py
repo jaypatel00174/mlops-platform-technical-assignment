@@ -19,7 +19,9 @@ _DEVELOPMENT_CREDENTIALS = "mlops:mlops@"
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
+        # `make bootstrap` writes .env at the repo root and the app runs from backend/. Later
+        # files win: backend/.env overrides the root one, real environment variables beat both.
+        env_file=("../.env", ".env"),
         env_file_encoding="utf-8",
         extra="ignore",
         case_sensitive=False,

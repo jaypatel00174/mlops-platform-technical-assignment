@@ -68,11 +68,20 @@ Feature branches merge into `dev` by pull request; `dev` is promoted to `main` b
 | Milestone | Scope | Status |
 |---|---|---|
 | Design baseline | Architecture, ADRs, API design, leadership artifacts | Done |
-| M0 Foundations | Tooling, configuration, Compose database, CI, architecture rules | In review |
-| M1 Domain and persistence | State machines, policy, persistence, migrations, seed loader | In progress |
+| M0 Foundations | Tooling, configuration, Compose database, CI, architecture rules | Implemented, in review |
+| M1 Domain and persistence | State machines, policy, persistence, migrations, seed loader | Implemented, in review |
 | M2 Registry and governance API | Models, versions, approvals, error envelope, RBAC | Not started |
 | M3 Async deployments | Outbox, worker, idempotency, retry, rollback, reconciler | Not started |
 | M4 Monitoring and UI | Metrics API, Angular views | Not started |
 | M5 Packaging and CI | Full Compose stack, smoke test | Not started |
 
-Screenshots, sample workflows, API documentation location and known limitations are added as the corresponding milestones land.
+What exists today: the domain rules (lifecycle, promotion policy, approvals with separation of duties, deployment status machine, failure classes, rollback safety, idempotency), the PostgreSQL schema with its concurrency guards, repositories, and an idempotent seed loader. There is **no HTTP API, worker or UI yet**.
+
+Known limitations at this stage (the full list will be in `docs/known-limitations.md`):
+
+- Model ids are globally unique. `tenant_id` is stored and every repository read is filtered by it, but composite tenant keys are not in place yet.
+- `metric_sample` is a plain table. Monthly partitioning and rollups are a later PostgreSQL-only migration.
+- The audit table is made append-only by a database trigger, but the application database role is not yet restricted to insert-only privileges.
+- Seeded history is imported as given (stage and approval are not re-derived); see `data/README.md`.
+
+Screenshots, sample workflows and the API documentation location are added as the corresponding milestones land.
