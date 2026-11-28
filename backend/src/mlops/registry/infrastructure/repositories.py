@@ -6,7 +6,9 @@ typed domain errors, and updates use the row's optimistic-lock counter (compare-
 
 from __future__ import annotations
 
-from sqlalchemy import select
+from collections.abc import Collection
+
+from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.exc import StaleDataError
@@ -85,14 +87,30 @@ class SqlModelRepository:
         )
         return _model_from_row(row) if row else None
 
-    def list_all(self, *, limit: int = 100, offset: int = 0) -> list[Model]:
-        rows = self._session.scalars(
-            select(ModelRow)
-            .where(ModelRow.tenant_id == self._tenant_id)
-            .order_by(ModelRow.id)
-            .limit(limit)
-            .offset(offset)
-        )
+    def list_all(
+        self,
+        *,
+        limit: int = 100,
+        offset: int = 0,
+        search: str | None = None,
+        framework: str | None = None,
+        after_id: str | None = None,
+    ) -> list[Model]:
+        """Models in id order. `after_id` is the keyset cursor; `search` matches id or name."""
+        statement = select(ModelRow).where(ModelRow.tenant_id == self._tenant_id)
+        if search:
+            needle = search.lower()
+            statement = statement.where(
+                or_(
+                    func.lower(ModelRow.id).contains(needle, autoescape=True),
+                    func.lower(ModelRow.name).contains(needle, autoescape=True),
+                )
+            )
+        if framework:
+            statement = statement.where(func.lower(ModelRow.framework) == framework.lower())
+        if after_id is not None:
+            statement = statement.where(ModelRow.id > after_id)
+        rows = self._session.scalars(statement.order_by(ModelRow.id).limit(limit).offset(offset))
         return [_model_from_row(row) for row in rows]
 
 
@@ -147,6 +165,24 @@ class SqlModelVersionRepository:
             )
         )
         return _version_from_row(row) if row else None
+
+    def stats_for(self, model_ids: Collection[str]) -> dict[str, tuple[int, str | None]]:
+        """Version count and latest semantic version per model, in one query."""
+        if not model_ids:
+            return {}
+        rows = self._session.execute(
+            select(ModelVersionRow.model_id, ModelVersionRow.version).where(
+                ModelVersionRow.tenant_id == self._tenant_id,
+                ModelVersionRow.model_id.in_(list(model_ids)),
+            )
+        )
+        found: dict[str, list[str]] = {}
+        for model_id, version in rows:
+            found.setdefault(model_id, []).append(version)
+        return {
+            model_id: (len(versions), max(versions, key=SemVer.parse))
+            for model_id, versions in found.items()
+        }
 
     def list_for_model(self, model_id: str) -> list[ModelVersion]:
         rows = self._session.scalars(
